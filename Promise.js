@@ -38,7 +38,7 @@ else {
 // 使用 resolvePromise 方法来解析回调函数的结果
 function resolvePromise(bridgePromise, promise, resolve, reject) {
 
-    if (bridgepromise === promise) {
+    if (bridgePromise === promise) {
 
         return reject(new TypeError('error'));
 
@@ -82,15 +82,17 @@ function Promise(callback) {
             return;
         }
 
+        if (value instanceof Promise) {
+            return value.then(resolve, reject);
+        }
+
         nextTick(function () {
             me.status = STATUS_FULFILLED;
             me.value = value;
 
-            me.onFulfilledCallbacks.forEach(
-                function (fn) {
-                    fn(me.value)
-                }
-            );
+            for (var i = 0, len = me.onFulfilledCallbacks.length; i < len; i++) {
+                me.onFulfilledCallbacks[i](me.value);
+            }
         });
 
     };
@@ -102,18 +104,20 @@ function Promise(callback) {
         nextTick(function () {
             me.status = STATUS_REJECTED;
             me.reason = reason;
-            me.onRejectedCallbacks.forEach(
-                function (fn) {
-                    fn(me.reason)
-                }
-            );
+            for (var i = 0, len = me.onRejectedCallbacks.length; i < len; i++) {
+                me.onRejectedCallbacks[i](me.value);
+            }
         });
     };
 
-    callback(
-        resolve,
-        reject
-    );
+    try {
+        callback(
+            resolve,
+            reject
+        );
+    } catch (event) {
+        reject(event);
+    }
 
 }
 
@@ -129,10 +133,10 @@ proto.then = function (onFulfilled, onRejected) {
     if (me.status === STATUS_PENDING) {
 
         return new Promise(function(resolve, reject) {
-
-            me.onFulfilledCallbacks.push((value) => {
+            var self = this;
+            me.onFulfilledCallbacks.push(function (value) {
                 try {
-                    resolvePromise(bridgePromise, onFulfilled(value), resolve, reject);
+                    resolvePromise(self, onFulfilled(value), resolve, reject);
                 }
                 catch (error) {
                     reject(error);
@@ -141,7 +145,7 @@ proto.then = function (onFulfilled, onRejected) {
 
             me.onRejectedCallbacks.push((error) => {
                 try {
-                    resolvePromise(bridgePromise, onRejected(value), resolve, reject);
+                    resolvePromise(self, onRejected(value), resolve, reject);
                 }
                 catch (error) {
                     reject(error);
@@ -156,6 +160,9 @@ proto.then = function (onFulfilled, onRejected) {
 proto.catch = function (onRejected) {
     return this.then(null, onRejected);
 };
+proto.finally = function (onFulfilled, onRejected) {
+    return this.then(onFulfilled, onRejected);
+};
 
 Promise.all = function (promises) {
 
@@ -164,7 +171,7 @@ Promise.all = function (promises) {
         var result = [];
         var counter = 0;
 
-        for (var i = 0; i < promises.length; i++) {
+        for (var i = 0, len = promises.length; i < len; i++) {
 
             promises[i]
             .then(
@@ -196,8 +203,9 @@ Promise.reject = function (reason) {
     });
 };
 Promise.race = function (promises) {
+
     return new Promise(function(resolve, reject) {
-        for (var i = 0; i < promises.length; i++) {
+        for (var i = 0, len = promises.length; i < len; i++) {
             promises[i]
             .then(
                 function(data) {
