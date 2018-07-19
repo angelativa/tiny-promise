@@ -1,3 +1,17 @@
+var task1 = new Promise(
+    function () {
+        console.log('>>>>>>> success');
+        resolve('success')
+    },
+    function () {
+        console.log('>>>>>>> error')
+    }
+);
+
+task1.then(function (a) {
+    console.log('task1 success', a);
+});
+
 let Promise = require("./Promise")
 let fs = require("fs")
 
